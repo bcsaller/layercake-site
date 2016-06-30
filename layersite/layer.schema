@@ -1,0 +1,14 @@
+title: Layer
+type: object
+properties:
+  id: {type: string}
+  name: {type: string}
+  owner:
+    items: {type: string}
+    minItems: 1
+    type: array
+  repo: {type: string}
+  summary: {type: string}
+  version: {default: 1, type: number}
+required: [id, name, repo, owner]
+

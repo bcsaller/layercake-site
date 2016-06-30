@@ -1,0 +1,24 @@
+{
+  "name": "layercake-site",
+  "version": "0.0.0",
+  "authors": [
+    "Benjamin Saller <bcsaller@gmail.com>"
+  ],
+  "license": "Apache 2",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "react": "^15.1.0",
+    "json-editor": "^0.7.26",
+    "bootstrap-material-design": "^0.5.10"
+  },
+  "description": "",
+  "main": "",
+  "homepage": "",
+  "private": true
+}

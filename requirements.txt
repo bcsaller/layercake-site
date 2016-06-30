@@ -1,0 +1,8 @@
+aioauth-client
+aiohttp
+aiohttp_jinja2
+jinja2
+jsonschema
+motor
+pytest
+pyyaml

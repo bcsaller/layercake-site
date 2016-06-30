@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+
+  <title>Layer Cake</title>
+
+  <!-- Material Design fonts -->
+  <link rel="stylesheet" href="http://fonts.googleapis.com/css?family=Roboto:300,400,500,700" type="text/css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+  <!-- Bootstrap -->
+  <link href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Bootstrap Material Design -->
+  <link href="/bower/bootstrap-material-design/dist/css/bootstrap-material-design.css" rel="stylesheet">
+  <link rel="stylesheet" type="text/css" href="/bower/bootstrap-material-design/dist/css/ripples.min.css">
+  <link rel="stylesheet" type="text/css" href="/bower/snackbarjs/dist/snackbar.min.css">
+
+  <script src="https://code.jquery.com/jquery-2.2.4.min.js" integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44=" crossorigin="anonymous"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+        font-size: 14px
+        font-family: Roboto, Arial, Sans;
+    }
+    .jumbotron { 
+        background-color: #ffffff;
+        box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.2);
+        border-radius: 2px;
+        padding: 19px;
+        margin-bottom: 20px;
+
+    }
+
+    .show-grid {
+        border: 1px solid #cecece;
+    }
+
+    .entities {
+    }
+
+    .entity-summary {
+        background-color: #ffffff;
+        padding: 10px;
+        margin-top: 10px;
+    }
+    
+    .entity:focus, .entity:hover {
+        background-color: cdcdcdc;
+        cursor: hand;
+    }
+
+    .entity div { 
+        padding: 4px;
+        margin: 2px;
+    }
+
+    .entity-details {
+        background-color: #ffffff;
+        padding: 4px 10px 10px 10px;
+        margin: 0px 10px 10px 10px;
+    }
+
+    #search {
+        display: inline-block;
+        width: 180px;
+    }
+    #search-clear { float: right;}
+
+    {% block css %}
+    {% endblock %}
+  </style>
+
+</head>
+<body>
+
+    <div class="bs-component">
+        <div class="navbar navbar-default">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-responsive-collapse">
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand" href="/">Layer Cake</a>
+                </div>
+                <div class="navbar-collapse collapse navbar-responsive-collapse">
+                   <ul class="nav navbar-nav navbar-right">
+                       <li>{% if user %}Welcome {{user['name']}}{%else%}<a href="{{app['auth'].auth_url()}}">Login with Github</a>{%endif%}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div id="source-button" class="btn btn-primary btn-xs" style="display: none;">&lt; &gt;</div>
+    </div>
+
+    <div class="container">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+
+<!-- Scripts -->
+<!-- Twitter Bootstrap -->
+<script src="/bower/bootstrap/dist/js/bootstrap.min.js"></script>
+
+<!-- Material Design for Bootstrap -->
+<script src="/bower/bootstrap-material-design/dist/js/material.min.js"></script>
+<script src="/bower/bootstrap-material-design/dist/js/ripples.min.js"></script>
+<script src="/bower/snackbarjs/dist/snackbar.min.js"></script>
+<script src="/bower/react/react-with-addons.js"></script>
+<script src="/bower/react/react-dom.js"></script>
+<script>
+  $.material.init();
+</script>
+{% block script %}
+{% endblock %}
+</body>
+</html>

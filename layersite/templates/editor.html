@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{%block css %}
+#editor_status { display: none;}
+{% endblock %}
+
+{% block content %}
+<pre id="editor_status"></pre>
+<div id="editor_holder"></div>
+<input id="editor_save" type="button" class="btn" value="submit"></input>
+<input id="editor_delete" type="button" class="btn" value="delete"></input>
+{% endblock %}
+
+{% block script %}
+<script src="/bower/json-editor/dist/jsoneditor.min.js"></script>
+<script>
+// Set default options
+// Initialize the editor
+var editor = new JSONEditor(document.getElementById("editor_holder"),{
+    schema: {{schema | jsonify}},
+theme: "bootstrap3",
+iconlib: "bootstrap3",
+no_additional_properties: true,
+disable_collapse: true,
+disable_edit_json: true,
+disable_properties: true,
+required_by_default: true,
+startval: {{entity.empty() | jsonify }}
+});
+
+var save = $("#editor_save");
+var del = $("#editor_delete");
+var message = $("#editor_status");
+save.on("click", function(e) {
+    var errors = editor.validate();
+    if (!errors.length) {
+        var data = editor.getValue();
+        $.ajax({
+        type: "POST", 
+        url: "/api/v2/{{kind}}/" + data.id + "/",
+        data: JSON.stringify(data),
+        processData: false,
+        complete: function(xhr, status) {
+        if (status === "error") {
+            $.snackbar({content: xhr.responseText});
+        } else {
+            $.snackbar({content: "Saved"});
+        }
+        }
+    })};
+});
+
+del.on("click", function(e) {
+    var data = editor.getValue();
+    if (!data.id) { return; }
+    $.ajax({
+    type: "DELETE", 
+    url: "/api/v2/{{kind}}/" + data.id + "/",
+    processData: false,
+    complete: function(xhr, status) {
+    if (status === "error") {
+        $.snackbar({content: xhr.responseText});
+    } else {
+        $.snackbar({content: "Removed"});
+        window.location = "/";
+    }
+    }});
+});
+
+
+
+
+editor.setValue({{ entity.bson() }});
+</script>
+{% endblock %}
+
+

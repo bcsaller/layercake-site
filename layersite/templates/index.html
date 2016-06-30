@@ -1,0 +1,51 @@
+{%extends "base.html"%}
+{% block content %}
+    <div class="container">
+            <div class="jumbotron">
+                <h2>Layer Cake</h2>
+                <p>Easily Assemble Containers, Discover Services and Apply Configuration.</p>
+                <div>
+                    <div class="col-md-6">
+
+                        <img src="static/pink_cake.svg" height="256" width="256">
+                        <div class="text-justify">
+                        <b>Cake</b> is a container assembly toolkit, making it
+                        easy to collaborate and consume parts of a container
+                        image. 
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <img src="static/disco_ball.svg" height="256" width="256">
+                        <div class="text-justify">
+                            <b>Disco</b> is a backend neutral discovery
+                            service for containers. It supports formal schemas
+                            describing expected data and allows for the
+                            inclusion of handlers that can help configure
+                            containers prior to the applications launch.
+                        </div>
+                    </div>
+                </div>
+                <p><a href="https://github.com/bcsaller/layercake/">Documentation/Quickstart</a></p>
+            </div>
+
+    <!-- Layers -->
+    <div class="container">
+        <div class="row" id="layerBox">
+        </div>
+   </div>
+
+    </div>
+
+{% endblock %}
+
+
+{% block script %}
+<script src="/static/main.jsx" type="text/javascript">
+</script>
+<script type="text/javascript">
+    ReactDOM.render(
+            React.createElement(EntityBox),
+            document.getElementById('layerBox')
+    );
+</script>
+{% endblock %}
