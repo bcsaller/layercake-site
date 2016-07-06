@@ -1,4 +1,7 @@
 from aiohttp import web
+import base64
+from pathlib import Path
+from urllib.parse import urlparse
 
 from bson.json_util import dumps
 import aiohttp_jinja2
@@ -49,7 +52,6 @@ class RESTBase:
         if user in self.request.app['admin_users']:
             return True
 
-        import pdb; pdb.set_trace()
         owners = document.get("owner", [])
         if not owners:
             # XXX: backwards compat
@@ -179,12 +181,81 @@ class LayerAPI(RESTResource):
     repo_factory = document.Repo
     collection = "layers"
 
-    async def get_readme(self, request):
-        # Readmes are stored in their own document and fetched out of band from
-        # the other metadata, thus the specifiedecial handling
-        uid = self.request.match_info['uid'].rstrip("/")
-        result = await self.repo_factory.find(self.db, {"id": uid})
-        return web.Response(text=dump(result[0]))
+    async def post(self, uid):
+        result = await super(LayerAPI, self).post(uid)
+        # and pull any repo updates
+
+        uid = uid.rstrip("/")
+        doc = await self.factory.find(self.db, {'id': uid})
+        doc = doc[0]
+
+        repo = RepoAPI()
+        self.request.app.loop.create_task(repo.ingest_repo(self.app, doc))
+        return result
+
+
+class RepoAPI(RESTResource):
+    version = "v2"
+    factory = document.Repo
+    collection = "repos"
+
+    def decode_content_from_response(self, response):
+        content = base64.b64decode(response['content'])
+        content = content.decode("utf-8")
+        return content
+
+    async def get_readme(self, repo_url, ghclient):
+        url = urlparse(repo_url)
+        rpath = url.path
+        response = await ghclient.get("/repos{}/readme".format(rpath))
+        return self.decode_content_from_response(response)
+
+    async def get_content(self, url, ghclient=None):
+        if not ghclient:
+            ghclient = auth.get_github_client(self.request)
+
+        response = await ghclient.get(url)
+        return self.decode_content_from_response(response)
+
+    async def walk_content(self, repo_url, ghclient):
+        url = urlparse(repo_url)
+        rpath = url.path
+        repo_dir = await ghclient.get("/repos{}/contents".format(rpath))
+        rules = []
+        schemas = []
+        for item in repo_dir:
+            if item['type'] != "file":
+                continue
+            path = Path(item['path'])
+            if path.match("*.rules"):
+                rules.append(
+                        await self.get_content(
+                            item['url'], ghclient))
+            elif path.match("*.schema"):
+                schema.append(
+                    await self.get_content(
+                        item['url'], ghclient))
+        return rules, schemas
+
+    async def ingest_repo(self, app, layer_doc):
+        oid = layer_doc['id']
+        repo_url = layer_doc['repo']
+        gh = auth.get_github_client()
+        if not gh:
+            raise ValueError("Unable to obtains github client")
+        readme = await self.get_readme(repo_url, gh)
+        rules, schemas = await self.walk_content(repo_url, gh)
+        rules = []
+        schema = []
+
+        obj = self.factory()
+        obj.update({"id": oid,
+                    "readme": readme,
+                    "rules": rules,
+                    "schema": schema})
+        db = getattr(app['db'], self.factory.collection)
+        await obj.save(db)
+        gh.close()
 
 
 def register_api(app, collection, item, base_uri="api"):
@@ -198,7 +269,9 @@ def register_api(app, collection, item, base_uri="api"):
     col.add_route("*", collection)
     # items
     itemep = "%s{uid:[\w_-]+/?}" % (apiep)
-    # r(router.add_route("GET", itemep + "/readme/"))
+    repos = router.add_resource("/%s/%s/repos/{uid}/" % (
+                base_uri, collection.version))
+    repos.add_route("*", RepoAPI())
 
     items = router.add_resource(itemep)
     items.add_route("*", item)

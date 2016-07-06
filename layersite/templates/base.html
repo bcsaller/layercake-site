@@ -26,11 +26,11 @@
         font-size: 14px
         font-family: Roboto, Arial, Sans;
     }
-    .jumbotron { 
+
+    .jumbotron {
         background-color: #ffffff;
         box-shadow: 0 8px 17px 0 rgba(0, 0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.2);
         border-radius: 2px;
-        padding: 19px;
         margin-bottom: 20px;
 
     }
@@ -56,12 +56,17 @@
     .entity div { 
         padding: 4px;
         margin: 2px;
+    
     }
 
     .entity-details {
         background-color: #ffffff;
         padding: 4px 10px 10px 10px;
         margin: 0px 10px 10px 10px;
+    }
+
+    .entity-controls {
+        float: right;
     }
 
     #search {
@@ -98,7 +103,7 @@
         <div id="source-button" class="btn btn-primary btn-xs" style="display: none;">&lt; &gt;</div>
     </div>
 
-    <div class="container">
+    <div class="container-fluid">
         {% block content %}
         {% endblock %}
     </div>
@@ -112,8 +117,9 @@
 <script src="/bower/bootstrap-material-design/dist/js/material.min.js"></script>
 <script src="/bower/bootstrap-material-design/dist/js/ripples.min.js"></script>
 <script src="/bower/snackbarjs/dist/snackbar.min.js"></script>
-<script src="/bower/react/react-with-addons.js"></script>
-<script src="/bower/react/react-dom.js"></script>
+<script src="/bower/react/react-with-addons.min.js"></script>
+<script src="/bower/react/react-dom.min.js"></script>
+<script src="/bower/remarkable/dist/remarkable.min.js"></script>
 <script>
   $.material.init();
 </script>

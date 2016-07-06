@@ -15,10 +15,14 @@
   "dependencies": {
     "react": "^15.1.0",
     "json-editor": "^0.7.26",
-    "bootstrap-material-design": "^0.5.10"
+    "bootstrap-material-design": "^0.5.10",
+    "remarkable": "^1.6.2"
   },
   "description": "",
   "main": "",
   "homepage": "",
-  "private": true
+  "private": true,
+  "resolutions": {
+    "react-markdown": "^2.1.1"
+  }
 }

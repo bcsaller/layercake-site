@@ -115,3 +115,4 @@ class Repo(Document):
     collection = "repos"
     schema = loader("repo.schema")
     pk = "id"
+    default_sort = "id"

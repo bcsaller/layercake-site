@@ -7,14 +7,15 @@ from aioauth_client import GithubClient
 
 
 class GithubAPI:
-    def __init__(self, access_token):
+    def __init__(self, access_token=None):
         self.endpoint = "https://api.github.com"
         self.token = access_token
         self._timeout = 10
         self._headers = {
-            'Authorization': 'token {}'.format(access_token),
             'User-Agent': 'aiohttp',
             }
+        if access_token:
+            self._headers['Authorization'] = 'token {}'.format(access_token)
         self._client = aiohttp.ClientSession()
 
     async def get(self, url):
@@ -31,6 +32,9 @@ class GithubAPI:
         return self
 
     def __exit__(self, *args):
+        self._client.close()
+
+    def close(self):
         self._client.close()
 
 
@@ -60,7 +64,6 @@ async def auth_callback(request):
     code = request.GET['code']
     token, _ = await github.get_token(code)
     assert token
-
     # Resolve user info
     with github.api(token) as api:
         user = await api.get("/user")
@@ -69,6 +72,8 @@ async def auth_callback(request):
         authcookie = json.dumps(user, ensure_ascii=False).encode("utf-8")
         # The decode here is a workaround for py.http which seems broken to me
         resp.set_cookie("u", base64.b64encode(authcookie).decode("utf-8"))
+
+        request.app.setdefault("users", {})[user['login']] = token
     return resp
 
 
@@ -81,3 +86,13 @@ def get_current_user(request):
     if user:
         return json.loads(base64.b64decode(user).decode('utf-8'))
     return None
+
+
+def get_github_client(request=None, user=None):
+    token = None
+    if not user and request is not None:
+        user = get_current_user(request)
+    if user:
+        token = request.app.get('users', {}).get(user['login'])
+    # If token is none a client w/o special access is used.
+    return GithubAPI(token)

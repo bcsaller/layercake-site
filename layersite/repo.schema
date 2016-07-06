@@ -1,34 +1,12 @@
-{
-  "title": "Repo",
-  "type": "object",
-  "properties": {
-    "id": {
-      "type": "string"
-    },
-    "name": {
-      "type": "string"
-    },
-    "repo": {
-      "type": "string"
-    },
-    "version": {
-      "type": "number",
-      "default": 1
-    },
-    "summary": {
-      "type": "string"
-    },
-    "kind": {
-        "enum": [ "charm", "runC"],
-        "type": "string"
-    },
-    "owner": {
-        "type": "array",
-        "items":{
-            "type": "string"
-        },
-        "minItems": 1
-    }
-  },
-  "required": ["id", "name", "repo", "owner", "kind"]
-}
+title: Repo
+type: object
+properties:
+  id: {type: string}
+  name: {type: string}
+  repo: {type: string}
+  readme: {type: string}
+  schema: {type: array, items: {type: "object"}}
+  rules: {type: array, items: {type: "object"}}
+  version: {default: 1, type: number}
+required: [id, name, repo]
+

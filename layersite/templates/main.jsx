@@ -44,18 +44,17 @@ var SearchBox = React.createClass({
     render: function() {
         return (
             <div className="row text-right">
-                <form className="col-md-3" _lpchecked="1">
-                    <div className="form-group is-empty">
+                <form _lpchecked="1">
+                    <div className="col-md-12 form-group is-empty">
                         <input id="search"
                          type="text"
                          ref="search"
                          className="form-control col-md-8"
                          placeholder="Search..."
                          onKeyUp={this.handleQuery}/>
-                     <a className="col-md-1"
-                        href="#" ref="searchClear"
-                        id="search-clear"
-                        onClick={this.clearQuery}><i className="material-icons">clear</i></a>
+                         <a href="#" ref="searchClear"
+                         id="search-clear"
+                         onClick={this.clearQuery}><i className="material-icons">clear</i></a>
                     </div>
                 </form>
             </div>
@@ -113,71 +112,75 @@ var EntityCollection = React.createClass({
                 <Entity {...entity} key={entity.id}/>
             );
         });
-        var addNew = "";
-        if (this.props.loggedIn === true) {
-            var addURL = this.props.kind + '/+/';
-            addNew = <a href={addURL}>+</a>;
-        }
         return (
             <div className="entityBox" ref={this.props.kind}>
-                <div className="entities container">
+                <div className="entities">
                    {entities}
-                </div>
-                <div class="row">
-                    <div className="text-right col-md-12">
-                        <button onClick={this.addNew} type="button" className="btn btn-fab btn-primary opensource">
-                            <i className="material-icons">add</i>
-                        </button>
+                   <div class="row">
+                        <div className="text-right col-md-12">
+                            <button onClick={this.addNew} type="button" className="btn btn-fab btn-primary opensource">
+                                <i className="material-icons">add</i>
+                            </button>
+                        </div>
                     </div>
                 </div>
-
             </div>
         );
     }
 });
 
 var Entity = React.createClass({
-toggleDetail: function() {
-    var self = this;
-    var details = $(".entity-details", this.refs.entity);
-    details.slideToggle();
-},
+    getInitialState: function() {
+        return {detailsShown: false};
+    },
 
-render: function() {
-    var detailURL = '/' + this.props.kind + '/' + this.props.id + '/';
-    return (
-        <div className="entity row" ref="entity">
-            <div onClick={this.toggleDetail} className="col-md-12 row entity-summary">
-                <div className="col-md-2 identity"><a href={detailURL} alt={this.props.id}>{this.props.name}</a></div>
-                <div className="col-md-1 repo"><a href={this.props.repo}>Repo</a></div>
-                <div className="col-md-4 summary">{this.props.summary}</div>
-                <div className="col-md-1 owner">{this.props.owner.join(", ")}</div>
+    toggleDetail: function() {
+        var self = this;
+        var details = $(".entity-details", this.refs.entity);
+        if (this.state.detailsShown === false) {
+            this.setState({detailsShown: true});
+            details.slideDown();
+        } else {
+            this.setState({detailsShown: false});
+            details.hide("slow");
+        }
+    },
+
+    render: function() {
+        var detailURL = '/' + this.props.kind + '/' + this.props.id + '/';
+        return (
+            <div className="entity" ref="entity">
+                <div onClick={this.toggleDetail} className="row entity-summary">
+                    <div className="col-md-3">
+                        <i className="material-icons">more_vert</i>
+                        <code>cake layer {this.props.id}</code>
+                    </div>
+                    <div className="col-md-2"><a href={detailURL} alt={this.props.id}>{this.props.name}</a></div>
+                    <div className="col-md-1"><a href={this.props.repo}>Repo</a></div>
+                    <div className="col-md-4">{this.props.summary}</div>
+                    <div className="col-md-1">{this.props.owner.join(", ")}</div>
+                </div>
+                <EntityDetails {...this.props} shown={this.state.detailsShown}/>
             </div>
-            <EntityDetails {...this.props}/>
-        </div>
-        );
-}
-});
-
-
-var EntityDetails = React.createClass({
-render: function() {
-    var hidden = {display: "none"};
-
-    return (
-        <div style={hidden} className="entity-details row col-md-12">
-            <div className="readme col-md-7">
-                README.md
-            </div>
-            <div className="rules col-md-4">
-                Rules/Schema
-            </div>
-            <EntityControls {...this.props}/>
-        </div>
-
-        );
+            );
     }
 });
+
+var EntityDetails = React.createClass({
+   render: function() {
+        var hidden = {display: "none"};
+
+        return (
+            <div style={hidden} className="entity-details row">
+                <div className="col-md-12">
+                    <EntityControls {...this.props}/>
+                    <RepoView id={this.props.id} shown={this.props.shown} />
+                </div>
+            </div>
+        );
+   }
+});
+
 
 
 var EntityControls = React.createClass({
@@ -198,11 +201,60 @@ var EntityControls = React.createClass({
     },
     render: function() {
         return (
-            <div className="entity-controls row">
+            <div className="entity-controls">
                 <a href={"/editor/layers/" + this.props.id + "/"} className="btn"><i className="material-icons">edit</i></a>
                 <a onClick={this.deleteEntity} className="btn"><i className="material-icons">delete</i></a>
-                <span><code>cake layer {this.props.id}</code></span>
             </div>
         );
     }
-})
+});
+
+var RepoView = React.createClass({
+
+    getInitialState: function() {
+        return {repo: false};
+    },
+
+    shouldComponentUpdate: function(nextProps, nextState) {
+        if (nextProps.shown === true &&
+            this.state.repo === false) {
+            this.queryBackend();
+            return true;
+        }
+        return false;
+    },
+
+    queryBackend: function() {
+        var self = this;
+        $.ajax({
+            url: "/api/v2/repos/" + this.props.id + "/",
+            dataType: 'json',
+            cache: false})
+        .done(function(data) {
+            if (self.isMounted()) {
+                self.setState({repo: data});
+            }
+        })
+        .fail(function(xhr, status, err) {
+            console.error(self.props.url, status, err.toString());
+        });
+    },
+
+    getReadme: function() {
+        var md = new Remarkable();
+        return {__html: md.render(this.state.repo.readme)};
+    },
+
+    render: function() {
+        return (
+            <div class="row">
+            <div className="readme col-md-7" dangerouslySetInnerHTML={this.getReadme()}>
+            </div>
+            <div className="rules col-md-4">
+            {this.state.repo.schema}
+            {this.state.repo.rules}
+            </div>
+            </div>
+        );
+    }
+});
