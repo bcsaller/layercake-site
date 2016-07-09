@@ -49,7 +49,7 @@ def setup_routes(app, options):
     jsx = router.add_resource("/static/{filename:\w+\.jsx}")
     jsx.add_route("*", transformer.get)
 
-    api.register_api(app, api.LayersAPI(), api.LayerAPI())
+    api.register_apis(app)
 
     # And static handling
     # XXX: cwd is not pacakgeable

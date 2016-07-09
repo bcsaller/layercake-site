@@ -6,3 +6,4 @@ jsonschema
 motor
 pytest
 pyyaml
+strict-rfc3339

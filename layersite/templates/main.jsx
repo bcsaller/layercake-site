@@ -142,7 +142,7 @@ var Entity = React.createClass({
             details.slideDown();
         } else {
             this.setState({detailsShown: false});
-            details.hide("slow");
+            details.hide("fast");
         }
     },
 

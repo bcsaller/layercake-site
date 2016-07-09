@@ -1,9 +1,11 @@
 from aiohttp import web
 import base64
+from functools import wraps, lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
 from bson.json_util import dumps
+from strict_rfc3339 import now_to_rfc3339_utcoffset
 import aiohttp_jinja2
 
 from . import auth
@@ -14,12 +16,34 @@ def dump(obj):
     return dumps(obj, indent=2)
 
 
+def permission(perm):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(f):
+            p = f.__annotations__.setdefault('permissions', set())
+            p.add(perm)
+        return wrapped
+    return decorator
+
+
 class RESTBase:
+    headers = {'Content-Type': 'application/json', }
+
     @classmethod
     def from_request(cls, request):
         i = cls()
         i.request = request
         return i
+
+    def default_route(self, base_url="api", obj=None):
+        url =  "/{}/{}/{}/".format(base_url, self.version, self.endpoint)
+        if obj:
+            if isinstance(obj, document.Document):
+                oid = obj.id
+            else:
+                oid = obj
+            url = "{}{}/".format(url, oid)
+        return url
 
     def get_current_user(self):
         return auth.get_current_user(self.request)
@@ -30,10 +54,11 @@ class RESTBase:
 
     @property
     def db(self):
-        return getattr(self.app['db'], self.collection)
+        return self.app['db']
 
-    def set_default_headers(self):
-        self.set_header("Content-Type", "application/json")
+    @property
+    def metrics(self):
+        return getattr(self.app['db'], "metrics")
 
     def parse_search_query(self):
         result = {}
@@ -47,18 +72,29 @@ class RESTBase:
         return result
 
     async def verify_write_permissions(self, document, user=None):
-        if user is None:
-            user = self.get_current_user()["login"]
-        if user in self.request.app['admin_users']:
+        return await self.verify_permissions(required_perms=("owner"),
+                                             document=document, user=user)
+
+    async def verify_permissions(self, method=None, user=None,
+                                 required_perms=None, document=None):
+        if required_perms is None and method:
+            required_perms = method.__annotations__.get('permissions', set())
+
+        if not required_perms:
             return True
 
-        owners = document.get("owner", [])
-        if not owners:
-            # XXX: backwards compat
+        if user is None:
+            user = self.get_current_user()
+        if user['login'] in self.request.app['admin_users']:
             return True
-        users = [o for o in owners if not o.startswith("~")]
-        if user in users:
-            return True
+
+        if document is not None:
+            # TODO: assign a list of roles to a user
+            # TODO: resolve roles to a perm set relative to an obj
+            # TODO: apply
+            owners = document.get("owner", [])
+            if user["login"] in owners:
+                return True
         return False
 
     async def __call__(self, request):
@@ -74,14 +110,27 @@ class RESTBase:
         if not m:
             raise web.HTTPMethodNotAllowed(request)
         # perm checks
+        await self.verify_permissions()
         return await m(**dict(request.match_info))
+
+    async def add_metric(self, data):
+        data['timestamp'] = now_to_rfc3339_utcoffset()
+        peername = self.request.transport.get_extra_info('peername')
+        if peername is not None:
+                host, port = peername
+                data['remote_address'] = host
+        data["username"] = self.get_current_user()["login"]
+        obj = document.Metric()
+        obj.update(data)
+        await obj.save(self.db, w=0)
 
 
 class RESTResource(RESTBase):
+    @lru_cache()
     async def get(self, uid):
         uid = uid.rstrip("/")
         result = await self.factory.find(self.db, {"id": uid})
-        return web.Response(text=dump(result[0]))
+        return web.Response(text=dump(result[0]), headers=self.headers)
 
     async def post(self, uid):
         body = await self.request.json()
@@ -91,9 +140,10 @@ class RESTResource(RESTBase):
             raise web.HTTPUnauthorized(reason="Github user not authorized")
         document.update(body)
         await document.save(self.db, user=self.get_current_user()['login'])
-#        await self.add_metric({"kind": self.collection,
-#                               "action": "update",
-#                               "item": document['id']})
+        await self.add_metric({"action": "update",
+                               "item": document['id']})
+        # clear the get cache
+        self.get.cache_clear()
         return web.Response(status=200)
 
     async def delete(self, uid):
@@ -103,15 +153,14 @@ class RESTResource(RESTBase):
             raise web.HTTPUnauthorized(reason="Github user not authorized")
         if document:
             await  document.remove(self.db)
-            #await self.add_metric({"kind": self.collection,
-            #                       "action": "delete",
-            #                       "item": document['id']})
+            await self.add_metric({"action": "delete",
+                                   "item": document['id']})
         return web.HTTPFound("/")
 
     async def editor_for(self, request):
         klass = self.factory
         schema = self.factory.schema
-        db = getattr(request.app['db'], self.factory.collection)
+        db = request.app['db']
         oid = request.match_info.get("oid", None)
         if oid == "+":
             # "+" is out token for "add new"
@@ -125,7 +174,8 @@ class RESTResource(RESTBase):
                 dict(
                     schema=schema,
                     entity=obj,
-                    kind=self.collection,
+                    endpoint=self.default_route(obj=oid),
+                    kind=obj.kind,
                     user=auth.get_current_user(request),
                     ))
 
@@ -137,28 +187,7 @@ class RESTCollection(RESTBase):
         for iface in (await self.factory.find(self.db, **q)):
             response.append(iface)
         # Iteration complete
-        return web.Response(text=dump(response))
-
-    async def post(self):
-        body = await self.request.json()
-        if not isinstance(body, list):
-            body = [body]
-        # XXX: ACL
-        #user = self.get_current_user()["username"]
-        # validate the user can modify each record before changing any
-        # XXX: this could be a race (vs out of band modification)
-        # but this will be redone with proper database acls
-        documents = []
-        for item in body:
-            id = item['id']
-            document = await self.factory.load(self.db, id)
-            #if not (await self.verify_write_permissions(document, user)):
-            #    return web.Response(401, "User not authorized")
-            document.update(item)
-            documents.append(document)
-        for document in documents:
-            await document.save(self.db, user=user)
-            # XXX: metrics
+        return web.Response(text=dump(response), headers=self.headers)
 
 
 class SchemaAPI:
@@ -166,20 +195,21 @@ class SchemaAPI:
         self.schema = schema
 
     async def get(self, request):
-        return web.Response(text=dump(self.schema))
+        return web.Response(text=dump(self.schema),
+                            headers={'Content-Type': 'application/json'})
 
 
 class LayersAPI(RESTCollection):
     version = "v2"
     factory = document.Layer
-    collection = "layers"
+    endpoint = "layers"
 
 
 class LayerAPI(RESTResource):
     version = "v2"
     factory = document.Layer
     repo_factory = document.Repo
-    collection = "layers"
+    endpoint = "layers"
 
     async def post(self, uid):
         result = await super(LayerAPI, self).post(uid)
@@ -197,7 +227,7 @@ class LayerAPI(RESTResource):
 class RepoAPI(RESTResource):
     version = "v2"
     factory = document.Repo
-    collection = "repos"
+    endpoint = "repos"
 
     def decode_content_from_response(self, response):
         content = base64.b64decode(response['content'])
@@ -232,7 +262,7 @@ class RepoAPI(RESTResource):
                         await self.get_content(
                             item['url'], ghclient))
             elif path.match("*.schema"):
-                schema.append(
+                schemas.append(
                     await self.get_content(
                         item['url'], ghclient))
         return rules, schemas
@@ -253,35 +283,56 @@ class RepoAPI(RESTResource):
                     "readme": readme,
                     "rules": rules,
                     "schema": schema})
-        db = getattr(app['db'], self.factory.collection)
-        await obj.save(db)
+        await obj.save(app['db'])
         gh.close()
 
 
-def register_api(app, collection, item, base_uri="api"):
+class MetricsAPI(RESTCollection):
+    version = "v2"
+    factory = document.Metric
+    endpoint = "metrics"
+
+    async def get(self):
+        if not (await self.verify_permissions(document, group="admin")):
+            raise web.HTTPUnauthorized(reason="Github user not authorized")
+        return await super(MetricsAPI, self).get()
+
+
+def register_apis(app, base_uri="api"):
     router = app.router
-    # collection
-    apiep = "/{}/{}/{}/".format(
+    # Metrics
+    metrics = MetricsAPI()
+    metrics_ep = router.add_resource("/{}/{}/{}/".format(
+                    base_uri,
+                    metrics.version,
+                    metrics.endpoint))
+
+    metrics_ep.add_route("*", metrics)
+
+    for collection, item in [(LayersAPI(), LayerAPI())]:
+        # collection
+        apiep = "/{}/{}/{}/".format(
+                base_uri,
+                collection.version,
+                collection.endpoint)
+        col = router.add_resource(apiep)
+        col.add_route("*", collection)
+        # items
+        itemep = "%s{uid:[\w_-]+/?}" % (apiep)
+        repos = router.add_resource("/%s/%s/repos/{uid}/" % (
+                    base_uri, collection.version))
+        repos.add_route("*", RepoAPI())
+
+        items = router.add_resource(itemep)
+        items.add_route("*", item)
+
+        # Editor support
+        router.add_route("GET", "/editor/%s/{oid}/" % (item.endpoint),
+                         item.editor_for)
+
+        # schema
+        router.add_route("*", "/{}/{}/schema/{}/".format(
             base_uri,
-            collection.version,
-            collection.collection)
-    col = router.add_resource(apiep)
-    col.add_route("*", collection)
-    # items
-    itemep = "%s{uid:[\w_-]+/?}" % (apiep)
-    repos = router.add_resource("/%s/%s/repos/{uid}/" % (
-                base_uri, collection.version))
-    repos.add_route("*", RepoAPI())
-
-    items = router.add_resource(itemep)
-    items.add_route("*", item)
-    # Editor support
-    router.add_route("GET", "/editor/%s/{oid}/" % (item.collection),
-                     item.editor_for)
-
-    # schema
-    router.add_route("*", "/{}/{}/schema/{}/".format(
-        base_uri,
-        item.version,
-        collection.factory.__name__.lower()),
-        SchemaAPI(collection.factory.schema).get)
+            item.version,
+            collection.factory.kind),
+            SchemaAPI(collection.factory.schema).get)

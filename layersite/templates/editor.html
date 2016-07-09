@@ -37,7 +37,7 @@ save.on("click", function(e) {
         var data = editor.getValue();
         $.ajax({
         type: "POST", 
-        url: "/api/v2/{{kind}}/" + data.id + "/",
+        url: "{{endpoint}}",
         data: JSON.stringify(data),
         processData: false,
         complete: function(xhr, status) {
@@ -45,6 +45,10 @@ save.on("click", function(e) {
             $.snackbar({content: xhr.responseText});
         } else {
             $.snackbar({content: "Saved"});
+            setTimeout(function() {
+                window.location = "/";
+            }, 2000);
+
         }
         }
     })};
@@ -55,7 +59,7 @@ del.on("click", function(e) {
     if (!data.id) { return; }
     $.ajax({
     type: "DELETE", 
-    url: "/api/v2/{{kind}}/" + data.id + "/",
+    url: "{{endpoint}}",
     processData: false,
     complete: function(xhr, status) {
     if (status === "error") {

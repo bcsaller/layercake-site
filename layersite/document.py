@@ -3,6 +3,7 @@ import datetime
 import logging
 import pkg_resources
 
+
 import jsonschema
 import yaml
 
@@ -14,7 +15,7 @@ def loader(filename):
     return yaml.load(open(fn).read())
 
 
-class Document(dict):
+class DocumentBase(dict):
     def __init__(self, data=None):
         self.update(self.empty())
         self.update(data)
@@ -22,11 +23,20 @@ class Document(dict):
     def __str__(self):
         return self.bson()
 
+    @property
+    def id(self):
+        return self.get(self.pk)
+
+    @property
+    def kind(self):
+        return self.schema.get("name", self.__class__.__name__).lower()
+
     def bson(self):
         return dumps(self)
 
     def validate(self):
-        jsonschema.validate(self, self.schema)
+        jsonschema.validate(self, self.schema,
+                            format_checker=jsonschema.FormatChecker())
 
     def __setitem__(self, key, value):
         self[key] = value
@@ -36,27 +46,8 @@ class Document(dict):
         if data:
             if isinstance(data, str):
                 data = loads(data)
-            super(Document, self).update(data)
-        super(Document, self).update(kwargs)
-
-    @classmethod
-    async def load(cls, db, key, update=True):
-        document = await db.find_one({cls.pk: key})
-        if document:
-            document = cls(document)
-        else:
-            document = cls({cls.pk: key})
-        return document
-
-    @classmethod
-    def query_from_schema(cls, key, value):
-        spec = cls.schema['properties'].get(key)
-        if not spec:
-            return {"$eq": value}
-        stype = spec.get("type", "string")
-        if stype == "number":
-            return {"$eq": int(value)}
-        return {"$regex": value, "$options": "i"}
+            super(DocumentBase, self).update(data)
+        super(DocumentBase, self).update(kwargs)
 
     @classmethod
     def empty(cls):
@@ -71,8 +62,32 @@ class Document(dict):
             result[k] = value
         return result
 
+
+class Document(DocumentBase):
+    @classmethod
+    def query_from_schema(cls, key, value):
+        spec = cls.schema['properties'].get(key)
+        if not spec:
+            return {"$eq": value}
+        stype = spec.get("type", "string")
+        if stype == "number":
+            return {"$eq": int(value)}
+        return {"$regex": value, "$options": "i"}
+
+
+    @classmethod
+    async def load(cls, db, key, update=True):
+        db = getattr(db, cls.collection)
+        document = await db.find_one({cls.pk: key})
+        if document:
+            document = cls(document)
+        else:
+            document = cls({cls.pk: key})
+        return document
+
     @classmethod
     async def find(cls, db, sort=True, **kwargs):
+        db = getattr(db, cls.collection)
         query = {}
         for k, v in kwargs.items():
             query[k] = cls.query_from_schema(k, v)
@@ -80,7 +95,7 @@ class Document(dict):
             query = {cls.pk: {"$exists": True}}
 
         query = {"$query": query}
-        if sort:
+        if sort and cls.default_sort:
             query["$orderby"] = {cls.default_sort: 1}
 
         result = []
@@ -88,20 +103,21 @@ class Document(dict):
             result.append(cls(doc))
         return result
 
-    async def save(self, db, upsert=True, user=None):
+    async def save(self, db, upsert=True, user=None, **kw):
+        db = getattr(db, self.collection)
         # XXX: user should be Org in an github I think
-        pk = self[self.pk]
         self.validate()
         dict.__setitem__(self, 'lastmodified',
                          datetime.datetime.utcnow())
         owners = self.get("owner", [])
         if user and not owners:
             dict.__setitem__(self, 'owner', [user])
-        await  db.update({self.pk: pk}, {'$set': self},
-                         upsert=upsert)
+        await db.update({self.pk: self.id}, {'$set': self},
+                        upsert=upsert, **kw)
 
     async def remove(self, db):
-        await db.remove({self.pk: self[self.pk]})
+        db = getattr(db, self.collection)
+        await db.remove({self.pk: self.id})
 
 
 class Layer(Document):
@@ -116,3 +132,10 @@ class Repo(Document):
     schema = loader("repo.schema")
     pk = "id"
     default_sort = "id"
+
+
+class Metric(Document):
+    collection = "metrics"
+    schema = loader("metrics.schema")
+    pk = "_id"
+    default_sort = None
