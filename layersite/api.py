@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from bson.json_util import dumps
 from strict_rfc3339 import now_to_rfc3339_utcoffset
 import aiohttp_jinja2
+import yaml
 
 from . import auth
 from . import document
@@ -240,12 +241,11 @@ class RepoAPI(RESTResource):
         response = await ghclient.get("/repos{}/readme".format(rpath))
         return self.decode_content_from_response(response)
 
-    async def get_content(self, url, ghclient=None):
-        if not ghclient:
-            ghclient = auth.get_github_client(self.request)
-
+    async def get_content(self, url, ghclient):
         response = await ghclient.get(url)
-        return self.decode_content_from_response(response)
+        content = self.decode_content_from_response(response)
+        response['content'] = content
+        return response
 
     async def walk_content(self, repo_url, ghclient):
         url = urlparse(repo_url)
@@ -265,6 +265,11 @@ class RepoAPI(RESTResource):
                 schemas.append(
                     await self.get_content(
                         item['url'], ghclient))
+
+        for rule in rules:
+            rule['content'] = yaml.load(rule['content'])
+        for schema in schemas:
+            schema['content'] = yaml.load(schema['content'])
         return rules, schemas
 
     async def ingest_repo(self, app, layer_doc):
@@ -275,14 +280,11 @@ class RepoAPI(RESTResource):
             raise ValueError("Unable to obtains github client")
         readme = await self.get_readme(repo_url, gh)
         rules, schemas = await self.walk_content(repo_url, gh)
-        rules = []
-        schema = []
-
         obj = self.factory()
         obj.update({"id": oid,
                     "readme": readme,
                     "rules": rules,
-                    "schema": schema})
+                    "schema": schemas})
         await obj.save(app['db'])
         gh.close()
 

@@ -40,10 +40,11 @@ def configure_logging(level):
 def setup():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mongo-uri", default="mongodb://localhost:27017")
-    parser.add_argument("--mongo-db", default="test")
+    parser.add_argument("--mongo-db", default="layers")
 
     parser.add_argument("-c", "--credentials", default="credentials.yaml")
     parser.add_argument("-l", "--log-level", default=logging.INFO)
+    #parser.add_argument("config", type=Path)
 
     options = parser.parse_args()
     return options

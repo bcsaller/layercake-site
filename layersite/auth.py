@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 
 import aiohttp
 from aiohttp import web
@@ -20,12 +21,14 @@ class GithubAPI:
 
     async def get(self, url):
         url = url[1:] if url.startswith("/") else url
-        url = self.endpoint + "/" + url
+        if not url.startswith("http"):
+            url = self.endpoint + "/" + url
         with aiohttp.Timeout(self._timeout):
             async with self._client.get(
                     url, headers=self._headers) as response:
                 if response.status >= 400:
-                    return response
+                    logging.warn("Failure to fetch %s", url)
+                    raise response
                 return await response.json()
 
     def __enter__(self):

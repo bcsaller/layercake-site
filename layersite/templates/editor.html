@@ -33,11 +33,12 @@ var del = $("#editor_delete");
 var message = $("#editor_status");
 save.on("click", function(e) {
     var errors = editor.validate();
+    var url = "{{endpoint}}";
     if (!errors.length) {
         var data = editor.getValue();
         $.ajax({
         type: "POST", 
-        url: "{{endpoint}}",
+        url: url.replace("+", data.id),
         data: JSON.stringify(data),
         processData: false,
         complete: function(xhr, status) {

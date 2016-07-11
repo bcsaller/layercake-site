@@ -147,15 +147,14 @@ var Entity = React.createClass({
     },
 
     render: function() {
-        var detailURL = '/' + this.props.kind + '/' + this.props.id + '/';
         return (
             <div className="entity" ref="entity">
                 <div onClick={this.toggleDetail} className="row entity-summary">
                     <div className="col-md-3">
-                        <i className="material-icons">more_vert</i>
+                        <i className="entity-handle material-icons">more_vert</i>
                         <code>cake layer {this.props.id}</code>
                     </div>
-                    <div className="col-md-2"><a href={detailURL} alt={this.props.id}>{this.props.name}</a></div>
+                    <div className="col-md-2">{this.props.name}</div>
                     <div className="col-md-1"><a href={this.props.repo}>Repo</a></div>
                     <div className="col-md-4">{this.props.summary}</div>
                     <div className="col-md-1">{this.props.owner.join(", ")}</div>
@@ -209,6 +208,21 @@ var EntityControls = React.createClass({
     }
 });
 
+var RepoContent = React.createClass({
+
+    render: function() {
+        return (
+            <div>
+                <h4>{this.props.path}</h4>
+                <pre>
+                {jsyaml.safeDump(this.props.content)}
+                </pre>
+            </div>
+        );
+    }
+});
+
+
 var RepoView = React.createClass({
 
     getInitialState: function() {
@@ -246,13 +260,31 @@ var RepoView = React.createClass({
     },
 
     render: function() {
+        var rules = [];
+        var schemas = [];
+
+        if (this.state.repo.rules !== undefined) {
+            rules = this.state.repo.rules.map(function(rule, index) {
+                return (
+                    <RepoContent {...rule} key={rule.path}/>
+                );
+            });
+        }
+        if (this.state.repo.schemas !== undefined) {
+             schemas = this.state.repo.schemas.map(function(schema, index) {
+                return (
+                    <RepoContent {...schema} key={schema.path}/>
+                );
+            });
+        }
+
         return (
             <div class="row">
             <div className="readme col-md-7" dangerouslySetInnerHTML={this.getReadme()}>
             </div>
             <div className="rules col-md-4">
-            {this.state.repo.schema}
-            {this.state.repo.rules}
+            {schemas}
+            {rules}
             </div>
             </div>
         );
