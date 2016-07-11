@@ -270,8 +270,8 @@ var RepoView = React.createClass({
                 );
             });
         }
-        if (this.state.repo.schemas !== undefined) {
-             schemas = this.state.repo.schemas.map(function(schema, index) {
+        if (this.state.repo.schema !== undefined) {
+             schemas = this.state.repo.schema.map(function(schema, index) {
                 return (
                     <RepoContent {...schema} key={schema.path}/>
                 );
