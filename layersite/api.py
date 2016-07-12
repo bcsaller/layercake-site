@@ -227,7 +227,7 @@ class LayersAPI(RESTCollection):
             for did in matched_repos:
                 iface = await self.factory.find(self.db,
                                                 **{self.factory.pk: did})
-                response.append(iface)
+                response.append(iface[0])
         return web.Response(text=dump(response), headers=self.headers)
 
 
