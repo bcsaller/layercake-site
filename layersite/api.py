@@ -223,7 +223,6 @@ class LayersAPI(RESTCollection):
             for repo in (await document.Repo.find(self.db, q)):
                 if repo.id not in seen:
                     matched_repos.append(repo.id)
-            print("RESOLVING", matched_repos)
             for did in matched_repos:
                 iface = await self.factory.find(self.db,
                                                 **{self.factory.pk: did})
