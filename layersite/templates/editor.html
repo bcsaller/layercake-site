@@ -67,7 +67,9 @@ del.on("click", function(e) {
         $.snackbar({content: xhr.responseText});
     } else {
         $.snackbar({content: "Removed"});
-        window.location = "/";
+        setTimeout(function() {
+            window.location = "/";
+        }, 2000);
     }
     }});
 });

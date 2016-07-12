@@ -155,6 +155,7 @@ var Entity = React.createClass({
     },
 
     render: function() {
+        var permlink = "/layer/" + this.props.id + "/";
         return (
             <div className="entity" ref="entity">
                 <div onClick={this.toggleDetail} className="row entity-summary">
@@ -164,8 +165,9 @@ var Entity = React.createClass({
                     </div>
                     <div className="col-md-2">{this.props.name}</div>
                     <div className="col-md-1"><a href={this.props.repo}>Repo</a></div>
-                    <div className="col-md-4">{this.props.summary}</div>
+                    <div className="col-md-3">{this.props.summary}</div>
                     <div className="col-md-1">{this.props.owner.join(", ")}</div>
+                    <div className="entity-link col-md-1"><a href={permlink}><i className="entity-handle material-icons">open_in_new</i></a></div>
                 </div>
                 <EntityDetails {...this.props} shown={this.state.detailsShown}/>
             </div>
@@ -202,7 +204,9 @@ var EntityControls = React.createClass({
                     $.snackbar({content: xhr.responseText});
                 } else {
                     $.snackbar({content: "Removed"});
-                    //window.location = "/";
+                    setTimeout(function() {
+                        window.location = "/";
+                        }, 2000);
                 }
             }});
     },

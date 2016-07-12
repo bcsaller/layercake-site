@@ -18,6 +18,14 @@ async def index(request):
                                           {"user": user, })
 
 
+async def layer_view(request):
+    user = auth.get_current_user(request)
+    oid = request.match_info["oid"]
+    return aiohttp_jinja2.render_template('layer.html', request,
+            {"user": user, "oid": oid,
+             "url": "/api/v2/layers/"})
+
+
 def configure_access(app, cred_conf):
     p = Path(cred_conf)
     if not p.exists():
@@ -55,3 +63,5 @@ def setup_routes(app, options):
     router.add_static("/static", str(resources))
     router.add_static("/bower", str(bower))
     configure_access(app, options.credentials)
+
+    router.add_route("GET", "/layer/{oid}/", layer_view)

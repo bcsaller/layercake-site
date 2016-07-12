@@ -1,0 +1,32 @@
+
+{%extends "base.html"%}
+{% block content %}
+    <div class="container">
+        <!-- Layers -->
+        <div class="container">
+            <div class="row" id="layerBox">
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
+
+
+{% block script %}
+<script src="/static/main.jsx" type="text/javascript">
+</script>
+<script type="text/javascript">
+    $.ajax({
+        url: "{{url}}",
+        data: {q: "id:{{oid}}"}
+    }).done(function(data) {
+        data = data[0];
+        ReactDOM.render(
+            React.createElement(Entity, data),
+            document.getElementById('layerBox'),
+            function() {
+                this.toggleDetail();
+            });
+    });
+</script>
+{% endblock %}
