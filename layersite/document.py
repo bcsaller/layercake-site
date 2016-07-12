@@ -5,6 +5,7 @@ import pkg_resources
 
 
 import jsonschema
+import motor
 import yaml
 
 log = logging.getLogger(__name__)
@@ -62,8 +63,20 @@ class DocumentBase(dict):
             result[k] = value
         return result
 
+    @classmethod
+    def properties(cls):
+        return cls.schema['properties'].keys()
+
+    @classmethod
+    def get_property(cls, name):
+        return cls.schema['properties'][name]
+
 
 class Document(DocumentBase):
+    @classmethod
+    async def prepare(cls, db):
+        await cls.create_text_index(db)
+
     @classmethod
     def query_from_schema(cls, key, value):
         spec = cls.schema['properties'].get(key)
@@ -73,7 +86,6 @@ class Document(DocumentBase):
         if stype == "number":
             return {"$eq": int(value)}
         return {"$regex": value, "$options": "i"}
-
 
     @classmethod
     async def load(cls, db, key, update=True):
@@ -86,20 +98,21 @@ class Document(DocumentBase):
         return document
 
     @classmethod
-    async def find(cls, db, sort=True, **kwargs):
+    async def find(cls, db, query=None, sort=True, **kwargs):
         db = getattr(db, cls.collection)
-        query = {}
-        for k, v in kwargs.items():
-            query[k] = cls.query_from_schema(k, v)
-        if not query:
-            query = {cls.pk: {"$exists": True}}
-
-        query = {"$query": query}
-        if sort and cls.default_sort:
-            query["$orderby"] = {cls.default_sort: 1}
-
+        if query is None:
+            query = {}
+            for k, v in kwargs.items():
+                query[k] = cls.query_from_schema(k, v)
+            if not query:
+                query = {cls.pk: {"$exists": True}}
+            query = {"$query": query}
         result = []
-        async for doc in db.find(query):
+        cursor = db.find(query)
+        if sort and cls.default_sort:
+            cursor.sort(cls.default_sort, 1)
+
+        async for doc in cursor:
             result.append(cls(doc))
         return result
 
@@ -118,6 +131,22 @@ class Document(DocumentBase):
     async def remove(self, db):
         db = getattr(db, self.collection)
         await db.remove({self.pk: self.id})
+
+    @classmethod
+    def text_fields(cls):
+        return [f for f in cls.properties() if cls.get_property(f)['type'] == "string"]
+
+    @classmethod
+    async def create_text_index(cls, db, drop=False):
+        db = getattr(db, cls.collection)
+        if drop:
+            await db.drop_index("fts")
+
+        fields = cls.text_fields()
+        spec = []
+        for field in fields:
+            spec.append((field, motor.pymongo.TEXT))
+        await db.ensure_index(spec, name="fts")
 
 
 class Layer(Document):

@@ -23,7 +23,7 @@ var SearchBox = React.createClass({
         e.preventDefault();
         var q = this.refs.search.value.trim();
         if (q !== "") {
-            this.props.setQuery(q); //e.target.value.trim());
+            this.props.setQuery(q);
             $(this.refs.searchClear).css("display", "inline-block");
         } else {
             this.props.setQuery("");
@@ -85,6 +85,7 @@ var EntityCollection = React.createClass({
         var data = {};
         if (query &&  query.length) {
             data['q'] = query;
+            data['repotext'] = true;
         }
         $.ajax({
             url: this.props.url,
@@ -115,6 +116,13 @@ var EntityCollection = React.createClass({
         return (
             <div className="entityBox" ref={this.props.kind}>
                 <div className="entities">
+                    <div className="col-md-12 entity-header">
+                        <div className="col-md-3">Usage</div>
+                        <div className="col-md-2">Name</div>
+                        <div className="col-md-1">Link</div>
+                        <div className="col-md-4">Description</div>
+                        <div className="col-md-1">Owners</div>
+                    </div>
                    {entities}
                    <div class="row">
                         <div className="text-right col-md-12">

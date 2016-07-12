@@ -12,6 +12,7 @@ from motor import motor_asyncio as motor
 import yaml
 
 
+from . import api
 from .views import setup_routes
 
 
@@ -27,9 +28,8 @@ async def init(options, loop):
     loader = jinja2.PackageLoader("layersite", "templates")
     env = aiohttp_jinja2.setup(app, loader=loader)
     env.filters['jsonify'] = json.dumps
-    print(loader.list_templates())
-
     setup_routes(app, options)
+    await api.register_apis(app)
     return app
 
 

@@ -5,7 +5,6 @@ from pathlib import Path
 import aiohttp_jinja2
 import yaml
 
-from . import api
 from . import auth
 from .babel import BabelTransformer
 
@@ -48,8 +47,6 @@ def setup_routes(app, options):
                                    __name__, 'templates'))
     jsx = router.add_resource("/static/{filename:\w+\.jsx}")
     jsx.add_route("*", transformer.get)
-
-    api.register_apis(app)
 
     # And static handling
     # XXX: cwd is not pacakgeable

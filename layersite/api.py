@@ -61,17 +61,6 @@ class RESTBase:
     def metrics(self):
         return getattr(self.app['db'], "metrics")
 
-    def parse_search_query(self):
-        result = {}
-        q = self.request.GET.getall("q", [])
-        for query in q:
-            if ":" in query:
-                k, v = query.split(":", 1)
-                result[k] = v
-            else:
-                result[self.factory.pk] = query
-        return result
-
     async def verify_write_permissions(self, document, user=None):
         return await self.verify_permissions(required_perms=("owner"),
                                              document=document, user=user)
@@ -130,8 +119,8 @@ class RESTResource(RESTBase):
     @lru_cache()
     async def get(self, uid):
         uid = uid.rstrip("/")
-        result = await self.factory.find(self.db, {"id": uid})
-        return web.Response(text=dump(result[0]), headers=self.headers)
+        result = await self.factory.find(self.db, id=uid)
+        return web.Response(text=dump(result[0] if result else []), headers=self.headers)
 
     async def post(self, uid):
         body = await self.request.json()
@@ -182,12 +171,24 @@ class RESTResource(RESTBase):
 
 
 class RESTCollection(RESTBase):
+    def parse_search_query(self):
+        result = {}
+        q = self.request.GET.getall("q", [])
+        for query in q:
+            if ":" in query:
+                k, v = query.split(":", 1)
+                result[k] = v
+            else:
+                if isinstance(q, list):
+                    q = " ".join(q)
+                result["$text"] = {"$search": q}
+        return result
+
     async def get(self):
         q = self.parse_search_query()
         response = []
-        for iface in (await self.factory.find(self.db, **q)):
+        for iface in (await self.factory.find(self.db, q)):
             response.append(iface)
-        # Iteration complete
         return web.Response(text=dump(response), headers=self.headers)
 
 
@@ -204,6 +205,30 @@ class LayersAPI(RESTCollection):
     version = "v2"
     factory = document.Layer
     endpoint = "layers"
+
+    async def get(self):
+        q = self.parse_search_query()
+        response = []
+        seen = set()
+        for iface in (await self.factory.find(self.db, q)):
+            seen.add(iface.id)
+            response.append(iface)
+
+        # we always do a fts of the layer, when repotext is set
+        # we include its text index as well
+        repotext = self.request.GET.get('repotext', False)
+        if repotext:
+            # Fall back to a full text search
+            matched_repos = []
+            for repo in (await document.Repo.find(self.db, q)):
+                if repo.id not in seen:
+                    matched_repos.append(repo.id)
+            print("RESOLVING", matched_repos)
+            for did in matched_repos:
+                iface = await self.factory.find(self.db,
+                                                **{self.factory.pk: did})
+                response.append(iface)
+        return web.Response(text=dump(response), headers=self.headers)
 
 
 class LayerAPI(RESTResource):
@@ -300,8 +325,9 @@ class MetricsAPI(RESTCollection):
         return await super(MetricsAPI, self).get()
 
 
-def register_apis(app, base_uri="api"):
+async def register_apis(app, base_uri="api"):
     router = app.router
+    db = app['db']
     # Metrics
     metrics = MetricsAPI()
     metrics_ep = router.add_resource("/{}/{}/{}/".format(
@@ -313,6 +339,8 @@ def register_apis(app, base_uri="api"):
 
     for collection, item in [(LayersAPI(), LayerAPI())]:
         # collection
+        await collection.factory.prepare(db)
+
         apiep = "/{}/{}/{}/".format(
                 base_uri,
                 collection.version,
@@ -323,7 +351,9 @@ def register_apis(app, base_uri="api"):
         itemep = "%s{uid:[\w_-]+/?}" % (apiep)
         repos = router.add_resource("/%s/%s/repos/{uid}/" % (
                     base_uri, collection.version))
-        repos.add_route("*", RepoAPI())
+        repoapi = RepoAPI()
+        repos.add_route("*", repoapi)
+        await repoapi.factory.prepare(db)
 
         items = router.add_resource(itemep)
         items.add_route("*", item)
