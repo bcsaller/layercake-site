@@ -17,7 +17,8 @@
     "json-editor": "^0.7.26",
     "bootstrap-material-design": "^0.5.10",
     "remarkable": "^1.6.2",
-    "js-yaml": "^3.6.1"
+    "js-yaml": "^3.6.1",
+    "prism": "Prism#^1.5.1"
   },
   "description": "",
   "main": "",

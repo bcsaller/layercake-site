@@ -223,11 +223,14 @@ var EntityControls = React.createClass({
 var RepoContent = React.createClass({
 
     render: function() {
+        var html = Prism.highlight(jsyaml.safeDump(this.props.content), Prism.languages.yaml);
+        html = {__html: html};
         return (
             <div>
                 <h4>{this.props.path}</h4>
                 <pre>
-                {jsyaml.safeDump(this.props.content)}
+                <code className="language-yaml" dangerouslySetInnerHTML={html}>
+                </code>
                 </pre>
             </div>
         );
