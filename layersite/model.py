@@ -1,4 +1,5 @@
 import base64
+import json
 import yaml
 
 from aiohttp import web
@@ -66,7 +67,6 @@ class LayersAPI(RESTCollection):
 class LayerAPI(RESTResource):
     version = "v2"
     factory = Layer
-    repo_factory = Repo
     endpoint = "layers"
 
     async def post(self, uid):
@@ -158,46 +158,39 @@ class MetricsAPI(RESTCollection):
         return await super(MetricsAPI, self).get()
 
 
-async def register_apis(app, base_uri="api"):
+class MetaAPI(RESTCollection):
+    async def get(self):
+        apis = {}
+        return web.Response(body=json.dumps(apis),
+                            headers=self.headers)
+
+
+async def register_api(app, api, base_uri):
     router = app.router
     db = app['db']
-    # Metrics
-    metrics = MetricsAPI()
-    metrics_ep = router.add_resource("/{}/{}/{}/".format(
-                    base_uri,
-                    metrics.version,
-                    metrics.endpoint))
+    await api.factory.prepare(db)
 
-    metrics_ep.add_route("*", metrics)
-
-    for collection, item in [(LayersAPI(), LayerAPI())]:
-        # collection
-        await collection.factory.prepare(db)
-
-        apiep = "/{}/{}/{}/".format(
-                base_uri,
-                collection.version,
-                collection.endpoint)
-        col = router.add_resource(apiep)
-        col.add_route("*", collection)
-        # items
+    apiep = "/{}/{}/{}/".format(
+            base_uri,
+            api.version,
+            api.endpoint)
+    if isinstance(api, RESTCollection):
+        route = router.add_resource(apiep)
+    else:
         itemep = "%s{uid:[\w_-]+/?}" % (apiep)
-        repos = router.add_resource("/%s/%s/repos/{uid}/" % (
-                    base_uri, collection.version))
-        repoapi = RepoAPI()
-        repos.add_route("*", repoapi)
-        await repoapi.factory.prepare(db)
-
-        items = router.add_resource(itemep)
-        items.add_route("*", item)
-
-        # Editor support
-        router.add_route("GET", "/editor/%s/{oid}/" % (item.endpoint),
-                         item.editor_for)
-
-        # schema
+        route = router.add_resource(itemep)
+        # schema explicitly added for each item type
         router.add_route("*", "/{}/{}/schema/{}/".format(
             base_uri,
-            item.version,
-            collection.factory.kind),
-            SchemaAPI(collection.factory.schema).get)
+            api.version,
+            api.factory.kind),
+            SchemaAPI(api.factory.schema).get)
+        # Editor support per item type
+        router.add_route("GET", "/editor/%s/{oid}/" % (api.endpoint),
+                api.editor_for)
+    route.add_route("*", api)
+
+
+async def register_apis(app, base_uri="api"):
+    for api in [MetricsAPI(), LayersAPI(), LayerAPI(), RepoAPI()]:
+        await register_api(app, api, base_uri)

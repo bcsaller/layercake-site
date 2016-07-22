@@ -12,7 +12,7 @@ var EntityBox = React.createClass({
         return (
             <div id="entity-box">
             <SearchBox setQuery={this.setQuery}/>
-            <EntityCollection query={this.state.q} loggedIn={this.props.loggedIn} kind="layer" url="/api/v2/layers/"/>
+            <EntityCollection query={this.state.q} loggedIn={this.props.loggedIn} kind="layer" collection="layers" url="/api/v2/layers/"/>
             </div>
         );
     }
@@ -103,14 +103,14 @@ var EntityCollection = React.createClass({
     },
 
     addNew: function(event) {
-        window.location = "/editor/layers/+/";
+        window.location = "/editor/" + this.props.collection + "/+/";
     },
 
     render: function() {
         var self = this;
         var entities = this.state.data.map(function(entity, index) {
             return (
-                <Entity {...entity} key={entity.id}/>
+                <Entity {...self.props} {...entity} key={entity.id}/>
             );
         });
         return (
@@ -155,7 +155,7 @@ var Entity = React.createClass({
     },
 
     render: function() {
-        var permlink = "/layer/" + this.props.id + "/";
+        var permlink = "/" + this.props.kind + "/" + this.props.id + "/";
         return (
             <div className="entity" ref="entity">
                 <div onClick={this.toggleDetail} className="row entity-summary">
@@ -197,7 +197,7 @@ var EntityControls = React.createClass({
         event.preventDefault();
         $.ajax({
             type: "DELETE",
-            url: "/api/v2/layers/" + this.props.id + "/",
+            url: this.props.url + this.props.id + "/",
             processData: false,
             complete: function(xhr, status) {
                 if (status === "error") {
@@ -213,7 +213,8 @@ var EntityControls = React.createClass({
     render: function() {
         return (
             <div className="entity-controls">
-                <a href={"/editor/layers/" + this.props.id + "/"} className="btn"><i className="material-icons">edit</i></a>
+                <a href={"/editor/" + this.props.collection + "/" + this.props.id + "/"} className="btn">
+                    <i className="material-icons">edit</i></a>
                 <a onClick={this.deleteEntity} className="btn"><i className="material-icons">delete</i></a>
             </div>
         );
