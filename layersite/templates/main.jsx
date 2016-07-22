@@ -147,7 +147,7 @@ var Entity = React.createClass({
         var details = $(".entity-details", this.refs.entity);
         if (this.state.detailsShown === false) {
             this.setState({detailsShown: true});
-            details.slideDown();
+            details.show();
         } else {
             this.setState({detailsShown: false});
             details.hide("fast");

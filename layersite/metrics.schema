@@ -1,11 +1,10 @@
 title: Metrics
 type: object
 properties:
-  id: {type: string}
-  timestamp: {type: string, format: "date-time"}
   action: {type: string}
   item: {type: string}
   username: {type: string}
   remote_address: {type: string}
-required: [id, action, item, timestamp]
+  kind: {type: string}
+required: [action, item, kind]
 

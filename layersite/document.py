@@ -32,6 +32,10 @@ class DocumentBase(dict):
     def kind(self):
         return self.schema.get("name", self.__class__.__name__).lower()
 
+    @classmethod
+    def get_kind(cls):
+        return cls.schema.get("name", cls.__name__).lower()
+
     def bson(self):
         return dumps(self)
 
@@ -104,8 +108,6 @@ class Document(DocumentBase):
             query = {}
             for k, v in kwargs.items():
                 query[k] = cls.query_from_schema(k, v)
-            if not query:
-                query = {cls.pk: {"$exists": True}}
             query = {"$query": query}
         result = []
 
@@ -128,8 +130,11 @@ class Document(DocumentBase):
         owners = self.get("owner", [])
         if user and not owners:
             dict.__setitem__(self, 'owner', [user])
-        await db.update({self.pk: self.id}, {'$set': self},
-                        upsert=upsert, **kw)
+        if not self.pk:
+            await db.insert(dict(self), **kw)
+        else:
+            await db.update({self.pk: self.id}, {'$set': self},
+                            upsert=upsert, **kw)
 
     async def remove(self, db):
         db = getattr(db, self.collection)
@@ -137,7 +142,8 @@ class Document(DocumentBase):
 
     @classmethod
     def text_fields(cls):
-        return [f for f in cls.properties() if cls.get_property(f)['type'] == "string"]
+        return [f for f in cls.properties() if
+                cls.get_property(f)['type'] == "string"]
 
     @classmethod
     async def create_text_index(cls, db, drop=False):
@@ -150,24 +156,3 @@ class Document(DocumentBase):
         for field in fields:
             spec.append((field, motor.pymongo.TEXT))
         await db.ensure_index(spec, name="fts")
-
-
-class Layer(Document):
-    collection = "layers"
-    schema = loader("layer.schema")
-    pk = "id"
-    default_sort = "name"
-
-
-class Repo(Document):
-    collection = "repos"
-    schema = loader("repo.schema")
-    pk = "id"
-    default_sort = "id"
-
-
-class Metric(Document):
-    collection = "metrics"
-    schema = loader("metrics.schema")
-    pk = "_id"
-    default_sort = None

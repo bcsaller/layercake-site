@@ -1,7 +1,6 @@
 import argparse
 import json
 import logging
-from pathlib import Path
 
 from aiohttp import web
 import aiohttp_jinja2
@@ -9,11 +8,10 @@ import asyncio
 import jinja2
 
 from motor import motor_asyncio as motor
-import yaml
 
 
-from . import api
-from .views import setup_routes
+from . import model
+from . import views
 
 
 log = logging.getLogger("layersite")
@@ -28,13 +26,15 @@ async def init(options, loop):
     loader = jinja2.PackageLoader("layersite", "templates")
     env = aiohttp_jinja2.setup(app, loader=loader)
     env.filters['jsonify'] = json.dumps
-    setup_routes(app, options)
-    await api.register_apis(app)
+    views.setup_routes(app, options)
+    await model.register_apis(app)
     return app
 
 
 def configure_logging(level):
-    logging.basicConfig(level=level)
+    logging.basicConfig(level=level,
+                        format="%(name)s:%(lineno)d:%(funcName)s: %(message)s")
+    logging.getLogger("asyncio").setLevel(logging.WARN)
 
 
 def setup():
@@ -44,7 +44,6 @@ def setup():
 
     parser.add_argument("-c", "--credentials", default="credentials.yaml")
     parser.add_argument("-l", "--log-level", default=logging.INFO)
-    #parser.add_argument("config", type=Path)
 
     options = parser.parse_args()
     return options
