@@ -29,6 +29,12 @@ class RESTBase:
         i.request = request
         return i
 
+    async def bootstrap(self, app, db):
+        """Do any bootstrapping needed for the type
+        This can include background tasks and db modifications
+        """
+        await self.factory.prepare(db)
+
     def default_route(self, base_url="api", obj=None):
         url = "/{}/{}/{}/".format(base_url, self.version, self.endpoint)
         if obj:

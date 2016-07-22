@@ -1,5 +1,7 @@
+import asyncio
 import base64
 import json
+import logging
 import yaml
 
 from aiohttp import web
@@ -9,6 +11,8 @@ from urllib.parse import urlparse
 from .api import (RESTCollection, RESTResource, Metric, dump)
 from . import auth
 from .document import Document, loader
+
+log = logging.getLogger("layersite")
 
 
 # Document models
@@ -86,6 +90,20 @@ class RepoAPI(RESTResource):
     version = "v2"
     factory = Repo
     endpoint = "repos"
+    WATCH_INTERVAL = 60 * 60 * 12
+
+    async def bootstrap(self, app, db):
+        await (super(RepoAPI, self).bootstrap(app, db))
+        # and spawn a "cronjob" for inspecting repos
+        self.watcher = app.loop.create_task(self.watch_repos(app, db))
+
+    async def watch_repos(self, app, db):
+        while True:
+            # walk the collection of layers (yes, there is an encapsulation
+            # break here) and update their repos when needed
+            for layer in await Layer.find(db):
+                await self.ingest_repo(app, layer)
+            await asyncio.sleep(self.WATCH_INTERVAL)
 
     def decode_content_from_response(self, response):
         content = base64.b64decode(response['content'])
@@ -135,6 +153,7 @@ class RepoAPI(RESTResource):
         gh = auth.get_github_client()
         if not gh:
             raise ValueError("Unable to obtains github client")
+        log.info("Ingesting %s for %s", repo_url, oid)
         readme = await self.get_readme(repo_url, gh)
         rules, schemas = await self.walk_content(repo_url, gh)
         obj = self.factory()
@@ -168,7 +187,7 @@ class MetaAPI(RESTCollection):
 async def register_api(app, api, base_uri):
     router = app.router
     db = app['db']
-    await api.factory.prepare(db)
+    await api.bootstrap(app, db)
 
     apiep = "/{}/{}/{}/".format(
             base_uri,
