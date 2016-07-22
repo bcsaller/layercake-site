@@ -1,6 +1,5 @@
 from aiohttp import web
 import base64
-from functools import wraps, lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -75,7 +74,7 @@ class RESTBase:
 
         if user is None:
             user = self.get_current_user()
-        if user['login'] in self.request.app['admin_users']:
+        if user and user['login'] in self.request.app['admin_users']:
             return True
 
         if document is not None:
@@ -83,7 +82,7 @@ class RESTBase:
             # TODO: resolve roles to a perm set relative to an obj
             # TODO: apply
             owners = document.get("owner", [])
-            if user["login"] in owners:
+            if user and user["login"] in owners:
                 return True
         return False
 
@@ -116,11 +115,11 @@ class RESTBase:
 
 
 class RESTResource(RESTBase):
-    @lru_cache()
     async def get(self, uid):
         uid = uid.rstrip("/")
         result = await self.factory.find(self.db, id=uid)
-        return web.Response(text=dump(result[0] if result else []), headers=self.headers)
+        return web.Response(text=dump(result[0] if result else []),
+                            headers=self.headers)
 
     async def post(self, uid):
         body = await self.request.json()
@@ -132,8 +131,6 @@ class RESTResource(RESTBase):
         await document.save(self.db, user=self.get_current_user()['login'])
         await self.add_metric({"action": "update",
                                "item": document['id']})
-        # clear the get cache
-        self.get.cache_clear()
         return web.Response(status=200)
 
     async def delete(self, uid):
@@ -145,7 +142,7 @@ class RESTResource(RESTBase):
             await  document.remove(self.db)
             await self.add_metric({"action": "delete",
                                    "item": document['id']})
-        return web.HTTPFound("/")
+        return web.Response(text="OK")
 
     async def editor_for(self, request):
         klass = self.factory
@@ -190,6 +187,26 @@ class RESTCollection(RESTBase):
         for iface in (await self.factory.find(self.db, q)):
             response.append(iface)
         return web.Response(text=dump(response), headers=self.headers)
+
+    async def post(self):
+        body = await self.request.json()
+        if not isinstance(body, list):
+            body = [body]
+        # validate the user can modify each record before changing any
+        documents = []
+        for item in body:
+            oid = item['id']
+            document = await self.factory.load(self.db, oid)
+            if not (await self.verify_write_permissions(document)):
+                raise web.HTTPUnauthorized(reason="Github user not authorized")
+            document.update(item)
+            documents.append(document)
+
+        for document in documents:
+            await document.save(self.db)
+            await self.add_metric({"action": "update",
+                                   "item": document['id']})
+        return web.Response(status=200)
 
 
 class SchemaAPI:

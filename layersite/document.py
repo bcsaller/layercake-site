@@ -108,7 +108,10 @@ class Document(DocumentBase):
                 query = {cls.pk: {"$exists": True}}
             query = {"$query": query}
         result = []
-        cursor = db.find(query)
+
+        # query omitting the internal fields
+        cursor = db.find(query, {"_id": 0,
+                                 "lastmodified": 0})
         if sort and cls.default_sort:
             cursor.sort(cls.default_sort, 1)
 
